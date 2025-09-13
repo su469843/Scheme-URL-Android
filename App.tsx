@@ -42,8 +42,4 @@ const styles = StyleSheet.create({
   },
 });
 
-const Cat = () => {
-  return <Text>Hello, I am your cat!</Text>;
-};
-
-export default Cat;
+export default App;
