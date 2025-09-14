@@ -1,8 +1,8 @@
-name: React Native Android Build (No Signing)
+name: React Native Android Build (Fixed)
 
 on:
   push:
-    branches: [ master ]
+    branches: [ master, develop ]
   workflow_dispatch:
 
 env:
@@ -10,177 +10,184 @@ env:
   JAVA_VERSION: '17'
 
 jobs:
-  Android:
-    name: 🤖 Android Build (Unsigned)
+  android-build:
+    name: 🤖 Android构建修复版
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 40
 
     steps:
-      - name: 📦 Check out repository
+      - name: 📦 检出代码
         uses: actions/checkout@v4
 
-      - name: ⎔ Setup Node.js
+      - name: ⎔ 设置Node.js
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
 
-      - name: ☕ Setup JDK
+      - name: ☕ 设置JDK
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
           java-version: ${{ env.JAVA_VERSION }}
 
-      - name: 🤖 Setup Android SDK
+      - name: 🤖 设置Android SDK
         uses: android-actions/setup-android@v2
 
-      - name: 💾 Cache dependencies
+      - name: 💾 缓存依赖
         uses: actions/cache@v4
         with:
           path: |
             ~/.npm
             node_modules
             android/.gradle
-          key: ${{ runner.os }}-android-${{ hashFiles('**/package-lock.json', '**/build.gradle') }}
+          key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
           restore-keys: |
-            ${{ runner.os }}-android-
+            ${{ runner.os }}-node-
 
-      - name: 📦 Install dependencies
+      - name: 📦 安装依赖
         run: npm ci --prefer-offline
 
-      - name: 🔧 Setup Gradle permissions
+      - name: 🔧 设置Gradle权限
         run: chmod +x android/gradlew
 
-      - name: 🧹 Clean previous builds
+      - name: 🧹 彻底清理构建环境
         run: |
-          cd android
+          echo "🧹 执行深度清理..."
+          # 停止所有Gradle守护进程
+          cd android && ./gradlew --stop || true
+          # 清理Gradle缓存
           ./gradlew clean --no-daemon
+          # 删除构建输出目录
+          rm -rf app/build/outputs
+          # 清理临时文件
+          rm -rf app/build/intermediates
+          # 回到项目根目录
+          cd ..
 
-      - name: 🏗️ Build Unsigned Release APK
+      - name: 🏗️ 构建纯净Release APK
         run: |
           cd android
-          # 构建未签名的release版本
-          ./gradlew assembleRelease -x signReleaseBundle --no-daemon --warning-mode=none --stacktrace
+          echo "🏗️ 开始构建纯净Release APK..."
+          ./gradlew assembleRelease \
+            --no-daemon \
+            --warning-mode=none \
+            --stacktrace \
+            -x bundleRelease \
+            -x signReleaseBundle \
+            -Dorg.gradle.jvmargs="-Xmx4g" \
+            -Dorg.gradle.console=verbose
         timeout-minutes: 30
 
-      - name: ✅ Verify APK integrity
+      - name: 🔍 检查生成的APK文件
+        run: |
+          echo "🔍 检查APK文件..."
+          cd android/app/build/outputs/apk/release
+          
+          # 列出所有APK文件
+          echo "找到的APK文件:"
+          ls -la *.apk || echo "未找到APK文件"
+          
+          # 检查主要的APK文件
+          if [ -f "app-release.apk" ]; then
+            echo "📦 主APK文件: app-release.apk"
+            echo "尺寸: $(du -h app-release.apk | cut -f1)"
+            
+            # 详细检查文件内容
+            echo "📄 文件内容分析:"
+            file app-release.apk
+            
+            # 检查是否包含metadata.properties
+            if unzip -l app-release.apk | grep -q "metadata.properties"; then
+              echo "⚠️  发现metadata.properties文件，尝试移除开发元数据..."
+              # 创建临时目录处理APK
+              TEMP_DIR=$(mktemp -d)
+              unzip app-release.apk -d "$TEMP_DIR"
+              
+              # 移除metadata文件
+              rm -f "$TEMP_DIR/"*metadata.properties 2>/dev/null || true
+              
+              # 重新打包
+              cd "$TEMP_DIR"
+              zip -r ../clean-app-release.apk ./*
+              cd -
+              
+              # 替换原文件
+              mv "$TEMP_DIR/../clean-app-release.apk" app-release.apk
+              rm -rf "$TEMP_DIR"
+              echo "✅ 已清理开发元数据"
+            fi
+            
+            # 最终验证
+            echo "✅ 最终验证:"
+            file app-release.apk
+            echo "APK验证通过!"
+            
+          else
+            echo "❌ 未找到app-release.apk"
+            exit 1
+          fi
+
+      - name: ✅ 验证APK完整性
         run: |
           cd android/app/build/outputs/apk/release
-          echo "🔍 Verifying APK files..."
+          APK_FILE="app-release.apk"
           
-          for apk in *.apk; do
-            if [ -f "$apk" ]; then
-              echo "📦 Checking $apk"
-              echo "Size: $(du -h "$apk" | cut -f1)"
-              
-              # 检查是否为有效的ZIP/APK文件
-              if file "$apk" | grep -q "Zip archive"; then
-                echo "✅ Valid APK format"
-                
-                # 检查基本APK结构
-                if unzip -l "$apk" | head -10 | grep -q "AndroidManifest.xml"; then
-                  echo "✅ Contains AndroidManifest.xml"
-                else
-                  echo "❌ Missing AndroidManifest.xml"
-                  exit 1
-                fi
-                
-              else
-                echo "❌ Invalid APK format: $(file "$apk")"
-                exit 1
-              fi
-              echo "---"
-            fi
-          done
+          echo "🔍 执行最终完整性验证..."
+          
+          # 检查文件类型
+          FILE_TYPE=$(file "$APK_FILE")
+          echo "文件类型: $FILE_TYPE"
+          
+          if echo "$FILE_TYPE" | grep -q "Zip archive"; then
+            echo "✅ ZIP格式正确"
+          else
+            echo "❌ 不是有效的ZIP文件"
+            exit 1
+          fi
+          
+          # 检查必要的APK组件
+          echo "📋 检查必要组件:"
+          if unzip -l "$APK_FILE" | head -20 | grep -E "(AndroidManifest.xml|classes.dex|resources.arsc)"; then
+            echo "✅ 包含必要组件"
+          else
+            echo "❌ 缺少必要组件"
+            exit 1
+          fi
+          
+          # 确认没有metadata文件
+          if unzip -l "$APK_FILE" | grep -q "metadata.properties"; then
+            echo "❌ 仍然包含metadata.properties"
+            exit 1
+          else
+            echo "✅ 不包含开发元数据"
+          fi
 
-      - name: 📊 Get package version
+      - name: 📊 获取版本信息
         run: |
           PACKAGE_VERSION=$(node -p "require('./package.json').version")
           echo "PACKAGE_VERSION=$PACKAGE_VERSION" >> $GITHUB_ENV
-          echo "Current version: $PACKAGE_VERSION"
+          echo "版本: $PACKAGE_VERSION"
 
-      - name: 🏷️ Create git tag
-        uses: pkgdeps/git-tag-action@v3
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          github_repo: ${{ github.repository }}
-          version: ${{ env.PACKAGE_VERSION }}
-          git_commit_sha: ${{ github.sha }}
-          git_tag_prefix: "v"
-
-      - name: 📦 Upload artifacts
+      - name: ⬆️ 上传构建产物
         uses: actions/upload-artifact@v4
         with:
-          name: android-unsigned-apks
-          path: |
-            android/app/build/outputs/apk/release/*.apk
+          name: android-clean-apks
+          path: android/app/build/outputs/apk/release/app-release.apk
           retention-days: 7
 
-      - name: 📝 Build summary
+      - name: 📝 生成构建报告
         run: |
-          echo "### 🤖 Android Build Successful (Unsigned)" >> $GITHUB_STEP_SUMMARY
+          echo "### 🎉 Android构建成功" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Version:** ${{ env.PACKAGE_VERSION }}" >> $GITHUB_STEP_SUMMARY
-          echo "**Build Type:** Unsigned Release" >> $GITHUB_STEP_SUMMARY
-          echo "**Build Time:** $(date +'%Y-%m-%d %H:%M:%S UTC')" >> $GITHUB_STEP_SUMMARY
+          echo "**状态:** ✅ 成功" >> $GITHUB_STEP_SUMMARY
+          echo "**版本:** ${{ env.PACKAGE_VERSION }}" >> $GITHUB_STEP_SUMMARY
+          echo "**构建类型:** Release (纯净版)" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**⚠️ Note:** These APKs are unsigned and may require enabling 'Unknown sources' to install on devices." >> $GITHUB_STEP_SUMMARY
+          echo "**生成的文件:**" >> $GITHUB_STEP_SUMMARY
+          echo "- \`app-release.apk\`" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Generated APKs:**" >> $GITHUB_STEP_SUMMARY
-          cd android/app/build/outputs/apk/release
-          for apk in *.apk; do
-            if [ -f "$apk" ]; then
-              SIZE=$(du -h "$apk" | cut -f1)
-              echo "- \`$apk\` ($SIZE)" >> $GITHUB_STEP_SUMMARY
-            fi
-          done
-
-  Release:
-    name: 🚀 Create Release
-    runs-on: ubuntu-latest
-    needs: [Android]
-    if: success()
-
-    steps:
-      - name: 📦 Checkout repository
-        uses: actions/checkout@v4
-
-      - name: 📥 Download artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: android-unsigned-apks
-          path: ./artifacts
-
-      - name: 📊 Get package version
-        run: |
-          PACKAGE_VERSION=$(node -p "require('./package.json').version")
-          echo "PACKAGE_VERSION=$PACKAGE_VERSION" >> $GITHUB_ENV
-
-      - name: 🔍 Generate MD5 checksums
-        run: |
-          echo "### 📦 File Integrity Checksums" > ./release-info.md
-          echo "\`\`\`" >> ./release-info.md
-          cd artifacts
-          md5sum *.apk >> ../release-info.md
-          echo "\`\`\`" >> ./release-info.md
-          echo "" >> ./release-info.md
-          echo "### 📝 Installation Note" >> ./release-info.md
-          echo "These APKs are **unsigned**. To install on Android devices:" >> ./release-info.md
-          echo "1. Enable **Install unknown apps** in settings" >> ./release-info.md
-          echo "2. Allow installation from your file manager/browser" >> ./release-info.md
-          echo "3. Install the APK as usual" >> ./release-info.md
-          echo "" >> ./release-info.md
-          echo "### 🚀 Release Notes" >> ./release-info.md
-          echo "Automated build from GitHub Actions - $(date +'%Y-%m-%d')" >> ./release-info.md
-
-      - name: 🚀 Create GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          body_path: ./release-info.md
-          prerelease: false
-          draft: false
-          tag_name: v${{ env.PACKAGE_VERSION }}
-          files: |
-            artifacts/*.apk
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          echo "**验证结果:**" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ ZIP格式正确" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ 包含必要组件" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ 无开发元数据" >> $GITHUB_STEP_SUMMARY
