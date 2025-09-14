@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 
 interface NavigationBarProps {
   activeTab: string;
@@ -8,8 +8,8 @@ interface NavigationBarProps {
 
 const NavigationBar: React.FC<NavigationBarProps> = ({ activeTab, onTabChange }) => {
   const tabs = [
-    { id: 'home', label: '首页', icon: require('./img/首页.svg') },
-    { id: 'settings', label: '设置', icon: require('./img/设置.svg') },
+    { id: 'home', label: '首页', icon: '🏠' },
+    { id: 'settings', label: '设置', icon: '⚙️' },
   ];
 
   return (
@@ -20,7 +20,9 @@ const NavigationBar: React.FC<NavigationBarProps> = ({ activeTab, onTabChange })
           style={[styles.tab, activeTab === tab.id && styles.activeTab]}
           onPress={() => onTabChange(tab.id)}
         >
-          <Image source={tab.icon} style={[styles.icon, activeTab === tab.id && styles.activeIcon]} />
+          <Text style={[styles.icon, activeTab === tab.id && styles.activeIcon]}>
+            {tab.icon}
+          </Text>
           <Text style={[styles.tabText, activeTab === tab.id && styles.activeTabText]}>
             {tab.label}
           </Text>
@@ -34,9 +36,9 @@ const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',
     height: 60,
-    backgroundColor: '#fff',
+    backgroundColor: '#e3f2fd', // 浅蓝色背景
     borderTopWidth: 1,
-    borderTopColor: '#e0e0e0',
+    borderTopColor: '#bbdefb',
   },
   tab: {
     flex: 1,
@@ -44,23 +46,22 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   activeTab: {
-    backgroundColor: '#f0f0f0',
+    backgroundColor: '#bbdefb', // 激活时的浅蓝色
   },
   icon: {
-    width: 24,
-    height: 24,
+    fontSize: 24,
     marginBottom: 4,
-    tintColor: '#333',
+    color: '#0d47a1', // 深蓝色图标
   },
   activeIcon: {
-    tintColor: '#007AFF',
+    color: '#0d47a1', // 激活时的深蓝色图标
   },
   tabText: {
     fontSize: 12,
-    color: '#333',
+    color: '#0d47a1', // 深蓝色文字
   },
   activeTabText: {
-    color: '#007AFF',
+    color: '#0d47a1', // 激活时的深蓝色文字
     fontWeight: 'bold',
   },
 });
