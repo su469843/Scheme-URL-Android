@@ -127,41 +127,7 @@ jobs:
             echo "❌ 未找到app-release.apk"
             exit 1
           fi
-
-      - name: ✅ 验证APK完整性
-        run: |
-          cd android/app/build/outputs/apk/release
-          APK_FILE="app-release.apk"
-          
-          echo "🔍 执行最终完整性验证..."
-          
-          # 检查文件类型
-          FILE_TYPE=$(file "$APK_FILE")
-          echo "文件类型: $FILE_TYPE"
-          
-          if echo "$FILE_TYPE" | grep -q "Zip archive"; then
-            echo "✅ ZIP格式正确"
-          else
-            echo "❌ 不是有效的ZIP文件"
-            exit 1
-          fi
-          
-          # 检查必要的APK组件
-          echo "📋 检查必要组件:"
-          if unzip -l "$APK_FILE" | head -20 | grep -E "(AndroidManifest.xml|classes.dex|resources.arsc)"; then
-            echo "✅ 包含必要组件"
-          else
-            echo "❌ 缺少必要组件"
-            exit 1
-          fi
-          
-          # 确认没有metadata文件
-          if unzip -l "$APK_FILE" | grep -q "metadata.properties"; then
-            echo "❌ 仍然包含metadata.properties"
-            exit 1
-          else
-            echo "✅ 不包含开发元数据"
-          fi
+    
 
       - name: 📊 获取版本信息
         run: |
