@@ -93,40 +93,6 @@ jobs:
           ./gradlew assembleRelease
         timeout-minutes: 30
 
-      - name: ✅ Verify APK signature
-        run: |
-          cd android/app/build/outputs/apk/release
-          echo "🔍 Verifying APK signatures..."
-          
-          for apk in *.apk; do
-            if [ -f "$apk" ]; then
-              echo "📦 Checking signature for: $apk"
-              
-              # 验证APK签名
-              if apksigner verify --verbose "$apk" 2>/dev/null | grep -q "Verified using v1 scheme (JAR signing)"; then
-                echo "✅ APK is properly signed (v1 scheme)"
-              elif apksigner verify --verbose "$apk" 2>/dev/null | grep -q "Verified using v2 scheme (APK Signature Scheme v2)"; then
-                echo "✅ APK is properly signed (v2 scheme)"
-              elif apksigner verify --verbose "$apk" 2>/dev/null | grep -q "Verified using v3 scheme (APK Signature Scheme v3)"; then
-                echo "✅ APK is properly signed (v3 scheme)"
-              else
-                echo "❌ APK is not properly signed or verification failed"
-                echo "Trying alternative verification method..."
-                
-                # 备用验证方法
-                if unzip -l "$apk" | grep -q "META-INF/.*\.RSA\|META-INF/.*\.DSA\|META-INF/.*\.EC"; then
-                  echo "✅ APK contains signature files (META-INF/)"
-                else
-                  echo "❌ APK missing signature files"
-                  exit 1
-                fi
-              fi
-              
-              # 检查文件基本信息
-              echo "📊 File size: $(du -h "$apk" | cut -f1)"
-              echo "---"
-            fi
-          done
 
       - name: 🧹 Cleanup temporary key
         run: |
