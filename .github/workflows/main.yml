@@ -90,15 +90,7 @@ jobs:
           cd android
           echo "🏗️ Building release APK with temporary signature..."
           
-          ./gradlew assembleRelease \
-            -PRELEASE_STORE_FILE=temporary.keystore \
-            -PRELEASE_KEY_ALIAS=${{ env.KEY_ALIAS }} \
-            -PRELEASE_STORE_PASSWORD=${{ env.KEYSTORE_PASSWORD }} \
-            -PRELEASE_KEY_PASSWORD=${{ env.KEYSTORE_PASSWORD }} \
-            --no-daemon \
-            --warning-mode=none \
-            --stacktrace \
-            -Dorg.gradle.jvmargs="-Xmx4g"
+          ./gradlew assembleRelease
         timeout-minutes: 30
 
       - name: ✅ Verify APK signature
