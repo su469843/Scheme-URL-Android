@@ -1,120 +1,201 @@
-name: Test Build - Debug
+name: React Native CI/CD Pipeline
 
 on:
   push:
-    branches: [ develop, test/*, feature/* ]
+    branches: [main, develop, test/*, feature/*]
   pull_request:
-    branches: [ develop, main ]
+    branches: [main, develop]
   workflow_dispatch:
 
+env:
+  NODE_VERSION: '20.19.4'
+  JAVA_VERSION: '17'
+  GRADLE_VERSION: '8.7'
+
 jobs:
-  debug-build:
-    name: 🧪 Build Debug APK
+  # 代码质量检查工作流
+  lint-and-test:
+    name: 🔍 代码检查和测试
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
 
     steps:
-      - name: 📦 Checkout code
+      - name: 📦 检出代码
         uses: actions/checkout@v4
 
-      - name: 🔍 检查项目结构
-        run: |
-          echo "📁 当前目录结构:"
-          ls -la
-          echo ""
-          echo "📁 android 目录结构:"
-          ls -la android/ || echo "没有 android 目录"
-          echo ""
-          echo "📁 检查 gradlew 文件位置:"
-          find . -name "gradlew" -type f 2>/dev/null || echo "未找到 gradlew 文件"
+      - name: ⎔ 设置Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
 
-      - name: 💾 Cache dependencies
+      - name: 💾 缓存Node模块
         uses: actions/cache@v4
         with:
           path: |
             ~/.npm
             node_modules
             android/.gradle
-          key: ${{ runner.os }}-debug-${{ hashFiles('**/package-lock.json', '**/build.gradle') }}
+            android/app/build
+          key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}-${{ hashFiles('**/build.gradle') }}
           restore-keys: |
-            ${{ runner.os }}-debug-
+            ${{ runner.os }}-node-
 
-      - name: ⎔ Setup Node.js
+      - name: 📦 安装依赖
+        run: npm ci --prefer-offline
+
+      - name: 🔍 运行ESLint检查
+        run: npm run lint || echo "Lint检查失败，但继续执行"
+
+      - name: 🧪 运行单元测试
+        run: npm test -- --passWithNoTests --coverage
+
+      - name: 📊 上传测试覆盖率
+        uses: codecov/codecov-action@v4
+        with:
+          file: ./coverage/lcov.info
+          fail_ci_if_error: false
+
+  # Android构建工作流
+  android-build:
+    name: 🤖 Android构建
+    runs-on: ubuntu-latest
+    needs: lint-and-test
+    timeout-minutes: 30
+    
+    strategy:
+      matrix:
+        build-type: [debug, release]
+
+    steps:
+      - name: 📦 检出代码
+        uses: actions/checkout@v4
+
+      - name: ⎔ 设置Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '18'
+          node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
 
-      - name: 📦 Install dependencies
-        run: npm ci
-
-      - name: ☕ Set up JDK 17
+      - name: ☕ 设置JDK
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
-          java-version: '17'
+          java-version: ${{ env.JAVA_VERSION }}
 
-      - name: 🤖 Setup Android SDK
+      - name: 🤖 设置Android SDK
         uses: android-actions/setup-android@v2
 
-      - name: 🔧 设置 Gradle 执行权限（正确路径）
-        run: |
-          # 检查 gradlew 文件的实际位置
-          if [ -f "android/gradlew" ]; then
-            echo "✅ 在 android/gradlew 找到 gradlew 文件"
-            chmod +x android/gradlew
-          elif [ -f "./gradlew" ]; then
-            echo "✅ 在 ./gradlew 找到 gradlew 文件"
-            chmod +x ./gradlew
-          else
-            echo "❌ 错误：未找到 gradlew 文件"
-            echo "正在尝试生成 gradlew..."
-            cd android && ./gradlew --version || cd android && gradle wrapper
-            chmod +x android/gradlew
-          fi
+      - name: 💾 恢复缓存
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.npm
+            node_modules
+            android/.gradle
+            android/app/build
+          key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}-${{ hashFiles('**/build.gradle') }}
+          restore-keys: |
+            ${{ runner.os }}-node-
 
-      - name: 🏗️ Build Debug APK
+      - name: 📦 安装依赖
+        run: npm ci --prefer-offline
+
+      - name: 🔧 设置Gradle权限
+        run: chmod +x android/gradlew
+
+      - name: 🏗️ 构建APK - ${{ matrix.build-type }}
         run: |
-          # 在 android 目录中执行构建
           cd android
-          ./gradlew assembleDebug --stacktrace --no-daemon --warning-mode=none
+          ./gradlew assemble${{ matrix.build-type }} --no-daemon --warning-mode=none --stacktrace
 
-      - name: 📋 验证生成的APK
+      - name: 🔍 验证APK文件
         run: |
-          echo "📦 检查生成的APK文件:"
-          APK_PATH="android/app/build/outputs/apk/debug/app-debug.apk"
-          
+          APK_PATH="android/app/build/outputs/apk/${{ matrix.build-type }}/app-${{ matrix.build-type }}.apk"
           if [ -f "$APK_PATH" ]; then
-            echo "✅ 找到 app-debug.apk"
-            echo "📊 文件大小: $(du -h "$APK_PATH" | cut -f1)"
-            ls -la "$APK_PATH"
+            echo "✅ APK构建成功: $APK_PATH"
+            echo "文件大小: $(du -h "$APK_PATH" | cut -f1)"
+            # 基本APK验证
+            if file "$APK_PATH" | grep -q "Zip archive"; then
+              echo "✅ APK文件格式正确"
+            else
+              echo "❌ APK文件格式异常"
+              exit 1
+            fi
           else
-            echo "❌ 错误: 未找到 app-debug.apk"
-            echo "搜索所有APK文件:"
-            find . -name "*.apk" -type f 2>/dev/null || echo "未找到任何APK文件"
+            echo "❌ 未找到APK文件"
+            find android/app/build/outputs -name "*.apk" | head -5
             exit 1
           fi
 
-      - name: ⬆️ Upload Debug APK
+      - name: ⬆️ 上传构建产物
         uses: actions/upload-artifact@v4
         with:
-          name: debug-app
-          path: android/app/build/outputs/apk/debug/app-debug.apk
-          retention-days: 3
-          if-no-files-found: error
+          name: android-${{ matrix.build-type }}-apk
+          path: android/app/build/outputs/apk/${{ matrix.build-type }}/app-${{ matrix.build-type }}.apk
+          retention-days: 7
 
-      - name: 📝 构建报告
+      - name: 📝 生成构建报告
+        if: always()
         run: |
-          APK_PATH="android/app/build/outputs/apk/debug/app-debug.apk"
-          if [ -f "$APK_PATH" ]; then
-            APK_SIZE=$(du -h "$APK_PATH" | cut -f1)
-          else
-            APK_SIZE="未知"
-          fi
-          
-          echo "### 🧪 测试构建完成" >> $GITHUB_STEP_SUMMARY
+          echo "### 🤖 Android ${{ matrix.build-type }}构建结果" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**构建状态:** ✅ 成功" >> $GITHUB_STEP_SUMMARY
-          echo "**构建类型:** Debug (未签名)" >> $GITHUB_STEP_SUMMARY
-          echo "**文件大小:** $APK_SIZE" >> $GITHUB_STEP_SUMMARY
-          echo "**构建时间:** $(date +'%Y-%m-%d %H:%M:%S')" >> $GITHUB_STEP_SUMMARY
+          echo "**状态:** ${{ job.status }}" >> $GITHUB_STEP_SUMMARY
+          echo "**构建类型:** ${{ matrix.build-type }}" >> $GITHUB_STEP_SUMMARY
+          echo "**构建时间:** $(date +'%Y-%m-%d %H:%M:%S UTC')" >> $GITHUB_STEP_SUMMARY
+          
+          APK_PATH="android/app/build/outputs/apk/${{ matrix.build-type }}/app-${{ matrix.build-type }}.apk"
+          if [ -f "$APK_PATH" ]; then
+            echo "**文件大小:** $(du -h "$APK_PATH" | cut -f1)" >> $GITHUB_STEP_SUMMARY
+            echo "**下载:** [点击下载](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "**构建失败:** 未生成APK文件" >> $GITHUB_STEP_SUMMARY
+          fi
+
+  # 安全扫描工作流
+  security-scan:
+    name: 🔒 安全扫描
+    runs-on: ubuntu-latest
+    needs: lint-and-test
+    timeout-minutes: 15
+
+    steps:
+      - name: 📦 检出代码
+        uses: actions/checkout@v4
+
+      - name: ⎔ 设置Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: 📦 安装依赖
+        run: npm ci
+
+      - name: 🔍 运行npm审计
+        run: npm audit --audit-level moderate || true
+
+      - name: 🔒 检查已知漏洞
+        uses: actions/dependency-review-action@v4
+        with:
+          fail-on-severity: high
+
+  # 部署工作流（可根据需要启用）
+  # deploy:
+  #   name: 🚀 部署
+  #   runs-on: ubuntu-latest
+  #   needs: [android-build, security-scan]
+  #   if: github.ref == 'refs/heads/main'
+  #   
+  #   steps:
+  #     - name: 📦 下载构建产物
+  #       uses: actions/download-artifact@v4
+  #       with:
+  #         name: android-release-apk
+  #         
+  #     - name: 🚀 部署到Firebase App Distribution
+  #       uses: wzieba/Firebase-Distribution-Github-Action@v1
+  #       with:
+  #         appId: ${{ secrets.FIREBASE_APP_ID }}
+  #         token: ${{ secrets.FIREBASE_TOKEN }}
+  #         groups: testers
+  #         file: app-release.apk
