@@ -1,14 +1,40 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, Switch, Appearance } from 'react-native';
+import { getDarkModePreference, saveDarkModePreference } from './StorageUtil';
 
 const SettingsScreen: React.FC = () => {
   // 获取系统默认主题
   const systemTheme = Appearance.getColorScheme();
-  // 初始化状态，优先使用系统主题，如果没有则默认为light
-  const [isDarkMode, setIsDarkMode] = useState(systemTheme === 'dark');
+  const [isDarkMode, setIsDarkMode] = useState(false);
 
-  const toggleTheme = (value: boolean) => {
+  // 组件加载时从本地存储读取用户偏好设置
+  useEffect(() => {
+    const loadDarkModePreference = async () => {
+      try {
+        const savedPreference = await getDarkModePreference();
+        // 如果有保存的偏好设置，则使用它；否则使用系统主题
+        if (savedPreference !== null) {
+          setIsDarkMode(savedPreference);
+        } else {
+          setIsDarkMode(systemTheme === 'dark');
+        }
+      } catch (error) {
+        console.error('加载深色模式偏好设置失败:', error);
+        // 出错时使用系统主题
+        setIsDarkMode(systemTheme === 'dark');
+      }
+    };
+
+    loadDarkModePreference();
+  }, [systemTheme]);
+
+  const toggleTheme = async (value: boolean) => {
     setIsDarkMode(value);
+    try {
+      await saveDarkModePreference(value);
+    } catch (error) {
+      console.error('保存深色模式偏好设置失败:', error);
+    }
   };
 
   return (
@@ -21,8 +47,7 @@ const SettingsScreen: React.FC = () => {
           onValueChange={toggleTheme}
         />
       </View>
-      <Text style={[styles.content, { color: isDarkMode ? '#ccc' : '#666' }]}>
-        {isDarkMode ? '深色模式已开启' : '深色模式已关闭'}
+      <Text style={[styles.content, { color: isDarkMode ? '#ccc' : '#666' }]}>        {isDarkMode ? '深色模式已开启' : '深色模式已关闭'}
       </Text>
     </View>
   );

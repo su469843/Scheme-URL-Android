@@ -2,7 +2,7 @@ name: React Native Android Build with Temporary Signing
 
 on:
   push:
-    branches: [ main ]
+    branches: [ dev ]
   workflow_dispatch:
 
 env:

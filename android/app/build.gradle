@@ -92,6 +92,21 @@ android {
             keyAlias 'androiddebugkey'
             keyPassword 'android'
         }
+        release {
+            // 动态创建keystore文件
+            def keystoreFile = null
+            if (project.hasProperty('KEYSTORE_BASE64')) {
+                def keystoreBytes = Base64.decoder.decode(KEYSTORE_BASE64)
+                keystoreFile = file("${buildDir}/temp_keystore.jks")
+                keystoreFile.parentFile.mkdirs()
+                keystoreFile.bytes = keystoreBytes
+            }
+            
+            storeFile keystoreFile ?: file('debug.keystore')
+            storePassword project.hasProperty('KEYSTORE_PASSWORD') ? KEYSTORE_PASSWORD : System.getenv("KEYSTORE_PASSWORD")
+            keyAlias project.hasProperty('KEYSTORE_KEY_ALIAS') ? KEYSTORE_KEY_ALIAS : System.getenv("KEYSTORE_KEY_ALIAS")
+            keyPassword project.hasProperty('KEYSTORE_KEY_PASSWORD') ? KEYSTORE_KEY_PASSWORD : System.getenv("KEYSTORE_KEY_PASSWORD")
+        }
     }
     buildTypes {
         debug {
@@ -100,9 +115,21 @@ android {
         release {
             // Caution! In production, you need to generate your own keystore file.
             // see https://reactnative.dev/docs/signed-apk-android.
-            signingConfig signingConfigs.debug
+            signingConfig signingConfigs.release
             minifyEnabled enableProguardInReleaseBuilds
             proguardFiles getDefaultProguardFile("proguard-android.txt"), "proguard-rules.pro"
+        }
+    }
+    
+    // 添加ABI过滤
+    if (project.hasProperty('ABI_FILTER')) {
+        splits {
+            abi {
+                enable true
+                reset()
+                include project.getProperties().get('ABI_FILTER')
+                universalApk false
+            }
         }
     }
 }
@@ -115,5 +142,14 @@ dependencies {
         implementation("com.facebook.react:hermes-android")
     } else {
         implementation jscFlavor
+    }
+}
+
+// 构建完成后清理临时keystore文件
+gradle.buildFinished {
+    def tempKeystore = file("${buildDir}/temp_keystore.jks")
+    if (tempKeystore.exists()) {
+        tempKeystore.delete()
+        println "Cleaned up temporary keystore file"
     }
 }

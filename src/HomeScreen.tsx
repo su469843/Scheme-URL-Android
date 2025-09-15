@@ -27,33 +27,47 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ onAddSchemePress, schemes = [] 
       <Text style={styles.content}>这是应用的主页内容</Text>
       
       {/* 添加Scheme Url卡片按钮 */}
-      <TouchableOpacity style={styles.card} activeOpacity={0.8} onPress={onAddSchemePress}>
-        <View style={styles.cardHeader}>
-          <Text style={styles.cardTitle}>添加Scheme Url</Text>
-        </View>
-        <View style={styles.cardBody}>
-          <Text style={styles.plusSign}>+</Text>
-        </View>
-      </TouchableOpacity>
-      
-      {/* 显示已添加的Scheme卡片 */}
-      {schemes.map((scheme, index) => (
-        <TouchableOpacity 
-          key={index} 
-          style={styles.schemeCard} 
-          activeOpacity={0.8} 
-          onPress={() => handleSchemePress(scheme.url)}
-        >
-          <View style={styles.schemeCardHeader}>
-            <Text style={styles.schemeCardTitle}>{scheme.name}</Text>
+      <View style={styles.row}>
+        <TouchableOpacity style={[styles.card, styles.cardLeft]} activeOpacity={0.8} onPress={onAddSchemePress}>
+          <View style={styles.cardHeader}>
+            <Text style={styles.cardTitle}>添加Scheme Url</Text>
           </View>
-          <View style={styles.schemeCardBody}>
-            <Text style={styles.schemeUrl} numberOfLines={1}>
-              {scheme.url}
-            </Text>
+          <View style={styles.cardBody}>
+            <Text style={styles.plusSign}>+</Text>
           </View>
         </TouchableOpacity>
-      ))}
+        
+        {/* 占位卡片，您可以根据需要修改 */}
+        <View style={[styles.card, styles.cardRight]}>
+          <View style={styles.cardHeader}>
+            <Text style={styles.cardTitle}>占位卡片</Text>
+          </View>
+          <View style={styles.cardBody}>
+            <Text style={styles.placeholderText}>功能待添加</Text>
+          </View>
+        </View>
+      </View>
+      
+      {/* 显示已添加的Scheme卡片 */}
+      <View style={styles.row}>
+        {schemes.map((scheme, index) => (
+          <TouchableOpacity 
+            key={index} 
+            style={index % 2 === 0 ? [styles.schemeCard, styles.cardLeft] : [styles.schemeCard, styles.cardRight]} 
+            activeOpacity={0.8} 
+            onPress={() => handleSchemePress(scheme.url)}
+          >
+            <View style={styles.schemeCardHeader}>
+              <Text style={styles.schemeCardTitle}>{scheme.name}</Text>
+            </View>
+            <View style={styles.schemeCardBody}>
+              <Text style={styles.schemeUrl} numberOfLines={1}>
+                {scheme.url}
+              </Text>
+            </View>
+          </TouchableOpacity>
+        ))}
+      </View>
     </ScrollView>
   );
 };
@@ -76,8 +90,13 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: 30,
   },
+  row: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    marginBottom: 20,
+  },
   card: {
-    width: '80%',
     height: 150,
     backgroundColor: '#e3f2fd',
     borderRadius: 10,
@@ -85,8 +104,15 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.2,
     shadowRadius: 4,
-    alignSelf: 'center',
     marginBottom: 20,
+  },
+  cardLeft: {
+    width: '48%',
+    marginRight: '2%',
+  },
+  cardRight: {
+    width: '48%',
+    marginLeft: '2%',
   },
   cardHeader: {
     padding: 15,
@@ -108,15 +134,17 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#1976d2',
   },
+  placeholderText: {
+    fontSize: 16,
+    color: '#666',
+  },
   schemeCard: {
-    width: '80%',
     backgroundColor: '#fff',
     borderRadius: 10,
     elevation: 3,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.2,
     shadowRadius: 4,
-    alignSelf: 'center',
     marginBottom: 20,
   },
   schemeCardHeader: {
