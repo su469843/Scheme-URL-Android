@@ -42,11 +42,19 @@ jobs:
             ${{ runner.os }}-gradle-
 
       - name: Make gradlew executable
-        run: chmod +x ./gradlew
+        run: |
+          # 检查 gradlew 文件位置
+          if [ -f "android/gradlew" ]; then
+            chmod +x android/gradlew
+            echo "Found gradlew in android directory"
+          else
+            echo "gradlew not found, attempting to generate it"
+            cd android && ./gradlew --version || gradle wrapper --gradle-version=8.5
+          fi
 
       - name: Build Release APK for ${{ matrix.abi }}
         run: |
-          # 使用KEYSTORE_BASE64环境变量
+          cd android
           echo "Building for ${{ matrix.abi }}"
           ./gradlew assembleRelease \
             -PKEYSTORE_BASE64='${{ secrets.KEYSTORE_BASE64 }}' \
