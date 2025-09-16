@@ -41,6 +41,9 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-gradle-
 
+      - name: Clean Gradle cache
+        run: rm -rf ~/.gradle/caches/
+
       - name: Make gradlew executable
         run: |
           # 检查 gradlew 文件位置
