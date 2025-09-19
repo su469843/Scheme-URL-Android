@@ -1,5 +1,4 @@
 pluginManagement {
-    def developmentProjectPath = rootProject.projectDir.getParentFile().toPath().relativize(settings.gradle.toPath()).getParent().toString()
     includeBuild("../node_modules/@react-native/gradle-plugin")
     repositories {
         google()
