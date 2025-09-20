@@ -1,8 +1,28 @@
+Skip to content
+Navigation Menu
+su469843
+Scheme-URL-Android
+
+Code
+Issues
+Pull requests
+Actions
+Projects
+Wiki
+Security
+Insights
+Settings
+React Native Android Build with Temporary Signing
+"Update" #14
+Jobs
+Run details
+Workflow file for this run
+.github/workflows/main.yml at ec5cfdc
 name: React Native Android Build with Temporary Signing
 
 on:
   push:
-    branches: [ dev ]
+    branches: [ main ]
   workflow_dispatch:
 
 env:
@@ -46,7 +66,6 @@ jobs:
           key: ${{ runner.os }}-android-${{ hashFiles('**/package-lock.json', '**/build.gradle') }}
           restore-keys: |
             ${{ runner.os }}-android-
-
       - name: 📦 Install dependencies
         run: npm ci --prefer-offline
 
@@ -57,7 +76,6 @@ jobs:
         run: |
           cd android
           ./gradlew clean --no-daemon
-
       - name: 🔐 Generate Temporary Signing Key
         run: |
           cd android
@@ -84,7 +102,6 @@ jobs:
             echo "❌ Failed to generate keystore"
             exit 1
           fi
-
       - name: 🏗️ Build with Temporary Signature
         run: |
           cd android
@@ -99,13 +116,11 @@ jobs:
           cd android
           rm -f temporary.keystore
           echo "✅ Temporary keystore cleaned up"
-
       - name: 📊 Get package version
         run: |
           PACKAGE_VERSION=$(node -p "require('./package.json').version")
           echo "PACKAGE_VERSION=$PACKAGE_VERSION" >> $GITHUB_ENV
           echo "Current version: $PACKAGE_VERSION"
-
       - name: 🏷️ Create git tag
         uses: pkgdeps/git-tag-action@v3
         with:
@@ -142,7 +157,6 @@ jobs:
               echo "- \`$apk\` ($SIZE)" >> $GITHUB_STEP_SUMMARY
             fi
           done
-
   Release:
     name: 🚀 Create Release
     runs-on: ubuntu-latest
@@ -163,7 +177,6 @@ jobs:
         run: |
           PACKAGE_VERSION=$(node -p "require('./package.json').version")
           echo "PACKAGE_VERSION=$PACKAGE_VERSION" >> $GITHUB_ENV
-
       - name: 🔍 Generate MD5 checksums
         run: |
           echo "### 📦 File Integrity Checksums" > ./release-info.md
@@ -182,7 +195,6 @@ jobs:
           echo "" >> ./release-info.md
           echo "### 🚀 Release Notes" >> ./release-info.md
           echo "Automated build with temporary signing - $(date +'%Y-%m-%d')" >> ./release-info.md
-
       - name: 🚀 Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
@@ -194,3 +206,4 @@ jobs:
             artifacts/*.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+"Update" · su469843/Scheme-URL-Android@ec5cfdc
