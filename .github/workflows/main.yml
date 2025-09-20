@@ -1,16 +1,11 @@
-<<<<<<< HEAD
 name: React Native Android Build with Temporary Signing
-=======
-name: React Native Android Build with Secure Signing
->>>>>>> 741bcefb71fc25e9c9c9b835f563754455cd5bc1
 
 on:
   push:
-    branches: [ dev ]
+    branches: [ main ]
   workflow_dispatch:
 
 env:
-<<<<<<< HEAD
   NODE_VERSION: '20.19.4'
   JAVA_VERSION: '17'
   KEYSTORE_PASSWORD: 'android'  # 临时密钥密码
@@ -21,26 +16,6 @@ jobs:
     name: 🤖 Android Build (Temporary Signed)
     runs-on: ubuntu-latest
     timeout-minutes: 45
-=======
-  # 基础配置
-  NODE_VERSION: '20.19.4'
-  JAVA_VERSION: '17'
-  DEPLOY_BRANCH: 'dev'
-  
-  # Android 构建配置
-  ANDROID_BUILD_TYPE: 'Release'
-  ANDROID_BUILD_TIMEOUT: '45'
-  GRADLE_BUILD_TIMEOUT: '30'
-  
-  # 签名配置 (使用 GitHub Secrets)
-  KEYSTORE_FILE: 'keystore.jks'
-
-jobs:
-  Android:
-    name: 🤖 Android Build (Securely Signed)
-    runs-on: ubuntu-latest
-    timeout-minutes: ${{ env.ANDROID_BUILD_TIMEOUT }}
->>>>>>> 741bcefb71fc25e9c9c9b835f563754455cd5bc1
 
     steps:
       - name: 📦 Check out repository
@@ -71,7 +46,6 @@ jobs:
           key: ${{ runner.os }}-android-${{ hashFiles('**/package-lock.json', '**/build.gradle') }}
           restore-keys: |
             ${{ runner.os }}-android-
-
       - name: 📦 Install dependencies
         run: npm ci --prefer-offline
 
@@ -82,8 +56,6 @@ jobs:
         run: |
           cd android
           ./gradlew clean --no-daemon
-
-<<<<<<< HEAD
       - name: 🔐 Generate Temporary Signing Key
         run: |
           cd android
@@ -110,7 +82,6 @@ jobs:
             echo "❌ Failed to generate keystore"
             exit 1
           fi
-
       - name: 🏗️ Build with Temporary Signature
         run: |
           cd android
@@ -125,76 +96,30 @@ jobs:
           cd android
           rm -f temporary.keystore
           echo "✅ Temporary keystore cleaned up"
-=======
-      - name: 🔐 Decode Keystore from Secrets
-        run: |
-          cd android
-          echo "🔑 Decoding keystore from GitHub Secrets..."
-          
-          # 将Base64编码的密钥库解码为文件:cite[4]
-          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > ${{ env.KEYSTORE_FILE }}
-          
-          # 验证密钥库文件是否成功生成
-          if [ -f "${{ env.KEYSTORE_FILE }}" ]; then
-            echo "✅ Keystore decoded successfully"
-            echo "Key info:"
-            keytool -list -v -keystore ${{ env.KEYSTORE_FILE }} -storepass ${{ secrets.KEYSTORE_PASSWORD }} | grep -E "(Alias|Valid|SHA)"
-          else
-            echo "❌ Failed to decode keystore"
-            exit 1
-          fi
-
-      - name: 🏗️ Build with Secure Signature
-        run: |
-          cd android
-          echo "🏗️ Building ${{ env.ANDROID_BUILD_TYPE }} APK with secure signature..."
-          
-          # 使用环境变量进行构建
-          ./gradlew assemble${{ env.ANDROID_BUILD_TYPE }} -PkeystoreFile=${{ env.KEYSTORE_FILE }} -PkeystorePassword=${{ secrets.KEYSTORE_PASSWORD }} -PkeyAlias=${{ secrets.KEYSTORE_KEY_ALIAS }} -PkeyPassword=${{ secrets.KEYSTORE_KEY_PASSWORD }}
-        timeout-minutes: ${{ env.GRADLE_BUILD_TIMEOUT }}
-
-      - name: 🧹 Cleanup keystore
-        run: |
-          cd android
-          rm -f ${{ env.KEYSTORE_FILE }}
-          echo "✅ Keystore cleaned up"
->>>>>>> 741bcefb71fc25e9c9c9b835f563754455cd5bc1
-
       - name: 📊 Get package version
         run: |
           PACKAGE_VERSION=$(node -p "require('./package.json').version")
           echo "PACKAGE_VERSION=$PACKAGE_VERSION" >> $GITHUB_ENV
           echo "Current version: $PACKAGE_VERSION"
-
       - name: 🏷️ Create git tag
         uses: pkgdeps/git-tag-action@v3
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           github_repo: ${{ github.repository }}
           version: ${{ env.PACKAGE_VERSION }}
-<<<<<<< HEAD
           git_commit_sha: ${{ github.sha }}
-=======
->>>>>>> 741bcefb71fc25e9c9c9b835f563754455cd5bc1
           git_tag_prefix: "v"
 
       - name: 📦 Upload signed artifacts
         uses: actions/upload-artifact@v4
         with:
-<<<<<<< HEAD
           name: android-signed-apks
           path: |
             android/app/build/outputs/apk/release/*.apk
-=======
-          name: android-${{ env.ANDROID_BUILD_TYPE }}-apks
-          path: |
-            android/app/build/outputs/apk/${{ env.ANDROID_BUILD_TYPE }}/*.apk
->>>>>>> 741bcefb71fc25e9c9c9b835f563754455cd5bc1
           retention-days: 7
 
       - name: 📝 Build summary
         run: |
-<<<<<<< HEAD
           echo "### 🤖 Android Build Successful (Temporary Signed)" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Version:** ${{ env.PACKAGE_VERSION }}" >> $GITHUB_STEP_SUMMARY
@@ -206,25 +131,12 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Generated APKs:**" >> $GITHUB_STEP_SUMMARY
           cd android/app/build/outputs/apk/release
-=======
-          echo "### 🤖 Android Build Successful (Securely Signed)" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Version:** ${{ env.PACKAGE_VERSION }}" >> $GITHUB_STEP_SUMMARY
-          echo "**Build Type:** ${{ env.ANDROID_BUILD_TYPE }} with Secure Signature" >> $GITHUB_STEP_SUMMARY
-          echo "**Build Time:** $(date +'%Y-%m-%d %H:%M:%S UTC')" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**ℹ️ Note:** APKs are signed with a secure certificate from GitHub Secrets." >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Generated APKs:**" >> $GITHUB_STEP_SUMMARY
-          cd android/app/build/outputs/apk/${{ env.ANDROID_BUILD_TYPE }}
->>>>>>> 741bcefb71fc25e9c9c9b835f563754455cd5bc1
           for apk in *.apk; do
             if [ -f "$apk" ]; then
               SIZE=$(du -h "$apk" | cut -f1)
               echo "- \`$apk\` ($SIZE)" >> $GITHUB_STEP_SUMMARY
             fi
           done
-
   Release:
     name: 🚀 Create Release
     runs-on: ubuntu-latest
@@ -238,18 +150,13 @@ jobs:
       - name: 📥 Download artifacts
         uses: actions/download-artifact@v4
         with:
-<<<<<<< HEAD
           name: android-signed-apks
-=======
-          name: android-${{ env.ANDROID_BUILD_TYPE }}-apks
->>>>>>> 741bcefb71fc25e9c9c9b835f563754455cd5bc1
           path: ./artifacts
 
       - name: 📊 Get package version
         run: |
           PACKAGE_VERSION=$(node -p "require('./package.json').version")
           echo "PACKAGE_VERSION=$PACKAGE_VERSION" >> $GITHUB_ENV
-
       - name: 🔍 Generate MD5 checksums
         run: |
           echo "### 📦 File Integrity Checksums" > ./release-info.md
@@ -259,7 +166,6 @@ jobs:
           echo "\`\`\`" >> ./release-info.md
           echo "" >> ./release-info.md
           echo "### 📝 Installation Note" >> ./release-info.md
-<<<<<<< HEAD
           echo "These APKs are signed with a **temporary certificate** for testing purposes." >> ./release-info.md
           echo "" >> ./release-info.md
           echo "### 🔑 Signature Information" >> ./release-info.md
@@ -269,17 +175,6 @@ jobs:
           echo "" >> ./release-info.md
           echo "### 🚀 Release Notes" >> ./release-info.md
           echo "Automated build with temporary signing - $(date +'%Y-%m-%d')" >> ./release-info.md
-=======
-          echo "These APKs are signed with a **secure certificate** from GitHub Secrets." >> ./release-info.md
-          echo "" >> ./release-info.md
-          echo "### 🔑 Signature Information" >> ./release-info.md
-          echo "- **Certificate Type:** Secure (from GitHub Secrets)" >> ./release-info.md
-          echo "- **Note:** Production-ready signed APKs" >> ./release-info.md
-          echo "" >> ./release-info.md
-          echo "### 🚀 Release Notes" >> ./release-info.md
-          echo "Automated build with secure signing - $(date +'%Y-%m-%d')" >> ./release-info.md
->>>>>>> 741bcefb71fc25e9c9c9b835f563754455cd5bc1
-
       - name: 🚀 Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
