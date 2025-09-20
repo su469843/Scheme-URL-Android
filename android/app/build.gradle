@@ -87,42 +87,16 @@ android {
         versionName "1.0"
     }
     signingConfigs {
-        debug {
-            storeFile file('debug.keystore')
-            storePassword 'android'
-            keyAlias 'androiddebugkey'
-            keyPassword 'android'
-        }
         release {
-            if (project.hasProperty('MYAPP_RELEASE_STORE_FILE')) {
-                storeFile file(MYAPP_RELEASE_STORE_FILE)
-                storePassword MYAPP_RELEASE_STORE_PASSWORD
-                keyAlias MYAPP_RELEASE_KEY_ALIAS
-                keyPassword MYAPP_RELEASE_KEY_PASSWORD
-            }
-            // 动态创建keystore文件
-            def keystoreFile = null
-            if (project.hasProperty('KEYSTORE_BASE64')) {
-                def keystoreBytes = Base64.decoder.decode(KEYSTORE_BASE64)
-                keystoreFile = file("${buildDir}/temp_keystore.jks")
-                keystoreFile.parentFile.mkdirs()
-                keystoreFile.bytes = keystoreBytes
-            }
-            
-            storeFile keystoreFile ?: file('debug.keystore')
-            storePassword project.hasProperty('KEYSTORE_PASSWORD') ? KEYSTORE_PASSWORD : System.getenv("KEYSTORE_PASSWORD")
-            keyAlias project.hasProperty('KEYSTORE_KEY_ALIAS') ? KEYSTORE_KEY_ALIAS : System.getenv("KEYSTORE_KEY_ALIAS")
-            keyPassword project.hasProperty('KEYSTORE_KEY_PASSWORD') ? KEYSTORE_KEY_PASSWORD : System.getenv("KEYSTORE_KEY_PASSWORD")
+            keyAlias System.getenv("KEY_ALIAS")
+            keyPassword System.getenv("KEY_PASSWORD")
+            storeFile file(System.getenv("STORE_FILE_PATH") ?: "default_path.jks")
+            storePassword System.getenv("KEYSTORE_PASSWORD")
         }
     }
     buildTypes {
-        debug {
-            signingConfig signingConfigs.debug
-        }
         release {
             signingConfig signingConfigs.release
-            minifyEnabled enableProguardInReleaseBuilds
-            proguardFiles getDefaultProguardFile("proguard-android.txt"), "proguard-rules.pro"
         }
     }
     
