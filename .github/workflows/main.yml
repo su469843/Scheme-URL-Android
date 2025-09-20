@@ -1,4 +1,4 @@
-name: React Native Android Build with Temporary Signing
+name: React Native Android Build with Release Signing
 
 on:
   push:
@@ -10,23 +10,13 @@ env:
   NODE_VERSION: '20.19.4'
   JAVA_VERSION: '17'
   ANDROID_BUILD_TYPE: 'Release'
-  KEYSTORE_FILE: 'temporary.keystore'
-  KEY_ALGORITHM: 'RSA'
-  KEY_SIZE: '2048'
-  KEY_VALIDITY: '10000'
-  KEY_DNAME: 'CN=Temp, OU=Temp, O=Temp, L=Temp, S=Temp, C=Temp'
+  KEYSTORE_FILE: 'release.keystore'
 
 jobs:
   Android:
-    name: 🤖 Android Build (Temporary Signed)
+    name: 🤖 Android Build (Release Signed)
     runs-on: ubuntu-latest
-    # 超时时间使用硬编码值，因为timeout-minutes不支持env上下文
     timeout-minutes: 45
-
-    # 作业级别的环境变量
-    env:
-      GRADLE_BUILD_TIMEOUT: 30
-      KEY_ALIAS: ${{ secrets.KEY_ALIAS || 'androidkey' }}
 
     steps:
       - name: 📦 Check out repository
@@ -69,62 +59,60 @@ jobs:
           cd android
           ./gradlew clean --no-daemon
 
-      - name: 🔐 Generate Temporary Signing Key
+      - name: 🔐 Decode and Setup Release Keystore
         run: |
-          cd android
-          echo "🔑 Generating temporary signing key..."
+          cd android/app
+          echo "🔑 Decoding release keystore from base64..."
           
-          # 生成临时签名密钥
-          keytool -genkeypair \
-            -v \
-            -keystore ${{ env.KEYSTORE_FILE }} \
-            -alias ${{ env.KEY_ALIAS }} \
-            -keyalg ${{ env.KEY_ALGORITHM }} \
-            -keysize ${{ env.KEY_SIZE }} \
-            -validity ${{ env.KEY_VALIDITY }} \
-            -dname "${{ env.KEY_DNAME }}" \
-            -storepass ${{ secrets.KEYSTORE_PASSWORD }} \
-            -keypass ${{ secrets.KEY_PASSWORD || secrets.KEYSTORE_PASSWORD }}
+          # 解码 base64 并创建 keystore 文件
+          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > ${{ env.KEYSTORE_FILE }}
           
-          # 验证密钥生成成功
+          # 验证文件是否创建成功
           if [ -f "${{ env.KEYSTORE_FILE }}" ]; then
-            echo "✅ Temporary keystore generated successfully"
-            echo "Key info:"
-            keytool -list -v -keystore ${{ env.KEYSTORE_FILE }} -storepass ${{ secrets.KEYSTORE_PASSWORD }} | grep -E "(Alias|Valid|SHA)"
+            echo "✅ Release keystore decoded successfully"
+            echo "File size: $(du -h ${{ env.KEYSTORE_FILE }} | cut -f1)"
+            # 验证keystore基本信息（不显示敏感信息）
+            keytool -list -keystore ${{ env.KEYSTORE_FILE }} -storepass ${{ secrets.KEYSTORE_PASSWORD }} | head -5 || echo "Key info verification completed"
           else
-            echo "❌ Failed to generate keystore"
+            echo "❌ Failed to decode keystore"
             exit 1
           fi
 
-      - name: 🔧 Configure release signing
+      - name: 🏗️ Build Release APK with Signing
         run: |
           cd android
-          # 创建 gradle.properties 文件或追加签名配置
-          echo "RELEASE_STORE_FILE=${{ env.KEYSTORE_FILE }}" >> gradle.properties
-          echo "RELEASE_STORE_PASSWORD=${{ secrets.KEYSTORE_PASSWORD }}" >> gradle.properties
-          echo "RELEASE_KEY_ALIAS=${{ env.KEY_ALIAS }}" >> gradle.properties
-          echo "RELEASE_KEY_PASSWORD=${{ secrets.KEY_PASSWORD || secrets.KEYSTORE_PASSWORD }}" >> gradle.properties
-          echo "✅ Signing configuration added to gradle.properties"
-
-      - name: 🏗️ Build with Temporary Signature
-        run: |
-          cd android
-          echo "🏗️ Building ${{ env.ANDROID_BUILD_TYPE }} APK with temporary signature..."
+          echo "🏗️ Building ${{ env.ANDROID_BUILD_TYPE }} APK with release signing..."
+          echo "Using signing configuration:"
+          echo "Store File: ${{ env.KEYSTORE_FILE }}"
+          echo "Key Alias: ${{ secrets.KEYSTORE_KEY_ALIAS }}"
           
-          # 使用正确的签名配置构建
-          ./gradlew assemble${{ env.ANDROID_BUILD_TYPE }} \
-            -PreleaseStoreFile=${{ env.KEYSTORE_FILE }} \
-            -PreleaseStorePassword=${{ secrets.KEYSTORE_PASSWORD }} \
-            -PreleaseKeyAlias=${{ env.KEY_ALIAS }} \
-            -PreleaseKeyPassword=${{ secrets.KEY_PASSWORD || secrets.KEYSTORE_PASSWORD }}
-        # 使用作业级别的环境变量
-        timeout-minutes: ${{ env.GRADLE_BUILD_TIMEOUT }}
+          # 使用命令行参数传递签名配置
+          ./gradlew assembleRelease -PMYAPP_UPLOAD_STORE_FILE='${{ secrets.KEYSTORE_STORE_FILE }}' -PMYAPP_UPLOAD_KEY_ALIAS='${{ secrets.KEYSTORE_KEY_ALIAS }}' -PMYAPP_UPLOAD_STORE_PASSWORD='${{ secrets.KEYSTORE_PASSWORD }}' -PMYAPP_UPLOAD_KEY_PASSWORD='${{ secrets.KEYSTORE_KEY_PASSWORD }}'
+          rm -f app/${{ secrets.KEYSTORE_STORE_FILE }} --info
+          
+          # 检查构建结果
+          if [ -f "app/build/outputs/apk/release/app-release.apk" ]; then
+            echo "✅ Build successful! APK generated:"
+            ls -la app/build/outputs/apk/release/
+            APK_SIZE=$(du -h app/build/outputs/apk/release/app-release.apk | cut -f1)
+            echo "APK Size: $APK_SIZE"
+          else
+            echo "❌ Build failed - APK not found!"
+            echo "Checking build outputs:"
+            ls -la app/build/outputs/ || true
+            ls -la app/build/ || true
+            exit 1
+          fi
 
-      - name: 🧹 Cleanup temporary key
+      - name: 🧹 Cleanup keystore file
         run: |
-          cd android
-          rm -f ${{ env.KEYSTORE_FILE }}
-          echo "✅ Temporary keystore cleaned up"
+          cd android/app
+          if [ -f "${{ env.KEYSTORE_FILE }}" ]; then
+            rm -f "${{ env.KEYSTORE_FILE }}"
+            echo "✅ Keystore file cleaned up"
+          else
+            echo "ℹ️ Keystore file already removed"
+          fi
 
       - name: 📊 Get package version
         run: |
@@ -132,35 +120,28 @@ jobs:
           echo "PACKAGE_VERSION=$PACKAGE_VERSION" >> $GITHUB_ENV
           echo "Current version: $PACKAGE_VERSION"
 
-      - name: 🏷️ Create git tag
-        uses: pkgdeps/git-tag-action@v3
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          github_repo: ${{ github.repository }}
-          version: ${{ env.PACKAGE_VERSION }}
-          git_tag_prefix: "v"
-
       - name: 📦 Upload signed artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: android-${{ env.ANDROID_BUILD_TYPE }}-apks
+          name: android-release-apks
           path: |
-            android/app/build/outputs/apk/${{ env.ANDROID_BUILD_TYPE }}/*.apk
+            android/app/build/outputs/apk/release/*.apk
           retention-days: 7
 
       - name: 📝 Build summary
         run: |
-          echo "### 🤖 Android Build Successful (Temporary Signed)" >> $GITHUB_STEP_SUMMARY
+          echo "### 🤖 Android Build Successful (Release Signed)" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Version:** ${{ env.PACKAGE_VERSION }}" >> $GITHUB_STEP_SUMMARY
-          echo "**Build Type:** ${{ env.ANDROID_BUILD_TYPE }} with Temporary Signature" >> $GITHUB_STEP_SUMMARY
+          echo "**Build Type:** ${{ env.ANDROID_BUILD_TYPE }} with Release Signature" >> $GITHUB_STEP_SUMMARY
           echo "**Build Time:** $(date +'%Y-%m-%d %H:%M:%S UTC')" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**ℹ️ Note:** APKs are signed with a temporary certificate for testing purposes." >> $GITHUB_STEP_SUMMARY
-          echo "These APKs can be installed normally on Android devices." >> $GITHUB_STEP_SUMMARY
+          echo "**Build Details:**" >> $GITHUB_STEP_SUMMARY
+          echo "- Signed with release certificate" >> $GITHUB_STEP_SUMMARY
+          echo "- Key Alias: ${{ secrets.KEYSTORE_KEY_ALIAS }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Generated APKs:**" >> $GITHUB_STEP_SUMMARY
-          cd android/app/build/outputs/apk/${{ env.ANDROID_BUILD_TYPE }}
+          cd android/app/build/outputs/apk/release
           for apk in *.apk; do
             if [ -f "$apk" ]; then
               SIZE=$(du -h "$apk" | cut -f1)
@@ -169,7 +150,7 @@ jobs:
           done
 
   Release:
-    name: 🚀 Create Release
+    name: 🚀 Create GitHub Release
     runs-on: ubuntu-latest
     needs: [Android]
     if: success()
@@ -181,33 +162,42 @@ jobs:
       - name: 📥 Download artifacts
         uses: actions/download-artifact@v4
         with:
-          name: android-${{ env.ANDROID_BUILD_TYPE }}-apks
+          name: android-release-apks
           path: ./artifacts
 
       - name: 📊 Get package version
         run: |
           PACKAGE_VERSION=$(node -p "require('./package.json').version")
           echo "PACKAGE_VERSION=$PACKAGE_VERSION" >> $GITHUB_ENV
+          echo "Release version: $PACKAGE_VERSION"
 
       - name: 🔍 Generate MD5 checksums
         run: |
           echo "### 📦 File Integrity Checksums" > ./release-info.md
           echo "\`\`\`" >> ./release-info.md
           cd artifacts
-          md5sum *.apk >> ../release-info.md
+          find . -name "*.apk" -exec md5sum {} \; >> ../release-info.md
           echo "\`\`\`" >> ./release-info.md
           echo "" >> ./release-info.md
-          echo "### 📝 Installation Note" >> ./release-info.md
-          echo "These APKs are signed with a **temporary certificate** for testing purposes." >> ./release-info.md
+          echo "### 📝 Release Information" >> ./release-info.md
+          echo "**Build Date:** $(date +'%Y-%m-%d %H:%M:%S UTC')" >> ./release-info.md
+          echo "**Version:** $PACKAGE_VERSION" >> ./release-info.md
           echo "" >> ./release-info.md
-          echo "### 🔑 Signature Information" >> ./release-info.md
-          echo "- **Certificate Type:** Temporary (for testing)" >> ./release-info.md
-          echo "- **Validity:** ${{ env.KEY_VALIDITY }} days" >> ./release-info.md
-          echo "- **Algorithm:** ${{ env.KEY_ALGORITHM }}-${{ env.KEY_SIZE }}" >> ./release-info.md
-          echo "- **Note:** For production release, use official signing certificates" >> ./release-info.md
+          echo "### 🔑 Signature Details" >> ./release-info.md
+          echo "- Signed with release certificate" >> ./release-info.md
+          echo "- For production distribution" >> ./release-info.md
           echo "" >> ./release-info.md
           echo "### 🚀 Release Notes" >> ./release-info.md
-          echo "Automated build with temporary signing - $(date +'%Y-%m-%d')" >> ./release-info.md
+          echo "Automated production release build" >> ./release-info.md
+          echo "" >> ./release-info.md
+          echo "### 📋 APK Files" >> ./release-info.md
+          cd artifacts
+          for apk in *.apk; do
+            if [ -f "$apk" ]; then
+              SIZE=$(du -h "$apk" | cut -f1)
+              echo "- \`$apk\` ($SIZE)" >> ./release-info.md
+            fi
+          done
 
       - name: 🚀 Create GitHub Release
         uses: softprops/action-gh-release@v2
@@ -220,3 +210,9 @@ jobs:
             artifacts/*.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: ✅ Release confirmation
+        run: |
+          echo "🎉 GitHub Release created successfully!"
+          echo "Version: v${{ env.PACKAGE_VERSION }}"
+          echo "APK files uploaded to release assets"
