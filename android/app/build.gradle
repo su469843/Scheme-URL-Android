@@ -104,9 +104,14 @@ android {
             signingConfig signingConfigs.debug
         }
         release {
+            if (signingConfigs.release.storeFile != null && signingConfigs.release.storeFile.exists()) {
+                signingConfig signingConfigs.release
+            } else {
+                signingConfig signingConfigs.debug // 或者不设置，或使用其他配置
+                println "Warning: Release signing config is not fully configured, falling back to debug."
+            }
             minifyEnabled enableProguardInReleaseBuilds
             proguardFiles getDefaultProguardFile("proguard-android.txt"), "proguard-rules.pro"
-            signingConfig signingConfigs.release
         }
     }
 
