@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { View, Text, TextInput, StyleSheet, TouchableOpacity, Alert } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../AppNavigator';
+import storage, { SavedUrl } from './storage';
+import { v4 as uuidv4 } from 'uuid';
 
 
 type CreateUrlScreenProps = NativeStackScreenProps<RootStackParamList, 'CreateUrl'>;
@@ -9,17 +11,29 @@ type CreateUrlScreenProps = NativeStackScreenProps<RootStackParamList, 'CreateUr
 const CreateUrlScreen: React.FC<CreateUrlScreenProps> = ({ navigation }) => {
   const [name, setName] = useState('');
   const [url, setUrl] = useState('');
+  const [saving, setSaving] = useState(false);
 
   const handleConfirm = async () => {
     if (!name || !url) {
       Alert.alert('错误', '名称和Scheme URL不能为空');
       return;
     }
+    if (saving) return;
+    setSaving(true);
     const item: SavedUrl = { id: uuidv4(), name, url };
-    await storage.saveUrl(item);
-    Alert.alert('成功', `已保存: ${name}\nURL: ${url}`, [
-      { text: '确定', onPress: () => navigation.goBack() },
-    ]);
+    try {
+      console.log('[CreateUrl] saving', item);
+      await storage.saveUrl(item);
+      console.log('[CreateUrl] saved successfully');
+      Alert.alert('成功', `已保存: ${name}\nURL: ${url}`, [
+        { text: '确定', onPress: () => navigation.goBack() },
+      ]);
+    } catch (e) {
+      console.error('[CreateUrl] save failed', e);
+      Alert.alert('错误', '保存失败，请稍后重试');
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -48,8 +62,8 @@ const CreateUrlScreen: React.FC<CreateUrlScreenProps> = ({ navigation }) => {
         />
       </View>
 
-      <TouchableOpacity style={styles.button} onPress={handleConfirm}>
-        <Text style={styles.buttonText}>确认</Text>
+      <TouchableOpacity style={[styles.button, saving ? styles.buttonDisabled : null]} onPress={handleConfirm} disabled={saving}>
+        <Text style={styles.buttonText}>{saving ? '保存中...' : '确认'}</Text>
       </TouchableOpacity>
     </View>
   );
@@ -92,6 +106,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginTop: 20,
   },
+  buttonDisabled: {
+    backgroundColor: '#9ecbff',
+  },
   buttonText: {
     color: '#fff',
     fontSize: 18,
@@ -100,5 +117,3 @@ const styles = StyleSheet.create({
 });
 
 export default CreateUrlScreen;
-import storage, { SavedUrl } from './storage';
-import { v4 as uuidv4 } from 'uuid';

@@ -2,8 +2,10 @@ import React, { useState, useEffect, useContext } from 'react';
 import { View, Text, StyleSheet, Alert, TouchableOpacity, Linking } from 'react-native';
 import { ThemeContext } from './theme/ThemeContext';
 import storage, { SavedUrl } from './storage';
+import { writeNfc } from './nfc';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../AppNavigator';
+import PhoneIcon from './img/手机.svg';
 
 interface HomeScreenProps extends NativeStackScreenProps<RootStackParamList, 'Home'> {
   url: string | null;
@@ -47,7 +49,6 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation, url, urlParams }) =
 
     return unsubscribe;
   }, []);
-
   const handleDelete = async (id: string) => {
     await storage.removeUrl(id);
     const list = await storage.getSavedUrls();
@@ -68,24 +69,16 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation, url, urlParams }) =
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: backgroundColor as any }]}> 
-      <View style={[styles.header, { backgroundColor: backgroundColor === '#f5f5f5' ? '#fff' : '#1e1e1e' }]}>
-        <Text style={[styles.title, { color: textColor as any }]}>首页</Text>
-        <Text style={[styles.subtitle, { color: textColor === '#333' ? '#666' : '#ccc' }]}>Scheme URL Handler</Text>
+    <View style={[styles.container, { backgroundColor }]}>
+      <View style={styles.header}>
+        <Text style={[styles.title, { color: textColor }]}>Scheme URL 管理</Text>
+        <Text style={[styles.subtitle, { color: textColor }]}>轻松管理您的 URL 方案</Text>
       </View>
 
       <View style={styles.content}>
         <TouchableOpacity style={styles.newCard} onPress={goToCreateUrl}>
-          <Text style={styles.newCardLabel}>新建Scheme URL</Text>
+          <Text style={styles.newCardLabel}>创建新的 Scheme URL</Text>
           <Text style={styles.newCardPlus}>+</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity style={styles.button} onPress={openTestUrl}>
-          <Text style={styles.buttonText}>测试说明</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity style={[styles.button, styles.secondaryButton]} onPress={goToSettings}>
-          <Text style={styles.buttonText}>设置</Text>
         </TouchableOpacity>
 
         {saved.length > 0 && (
@@ -97,9 +90,17 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation, url, urlParams }) =
                   <Text style={styles.paramKey}>{item.name}</Text>
                   <Text style={styles.paramValueSmall}>{item.url}</Text>
                 </TouchableOpacity>
-                <TouchableOpacity onPress={() => handleDelete(item.id)} style={styles.deleteBtn}>
-                  <Text style={{color:'#ff3b30'}}>删除</Text>
-                </TouchableOpacity>
+                <View style={styles.savedActions}>
+                  <TouchableOpacity onPress={() => handleDelete(item.id)} style={styles.smallBtn}>
+                    <Text style={{color:'#ff3b30'}}>删除</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={() => {
+                  Alert.alert('NFC写入', '请将手机靠近您的 NFC 卡片');
+                  writeNfc(`SchemeUrl://open/s/${item.id}`);
+                }} style={styles.smallBtn}>
+                    <Text style={{color:'#007AFF'}}>📱写入NFC</Text>
+                  </TouchableOpacity>
+                </View>
               </View>
             ))}
           </View>
@@ -131,6 +132,15 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation, url, urlParams }) =
           </View>
         )}
       </View>
+
+      <View style={styles.footer} pointerEvents="box-none">
+        <TouchableOpacity style={styles.footerButton} onPress={openTestUrl}>
+          <Text style={styles.buttonText}>测试说明</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={[styles.footerButton, styles.footerPrimary]} onPress={goToSettings}>
+          <Text style={styles.buttonText}>设置</Text>
+        </TouchableOpacity>
+      </View>
     </View>
   );
 };
@@ -159,6 +169,7 @@ const styles = StyleSheet.create({
   },
   content: {
     padding: 20,
+    paddingBottom: 120,
   },
   button: {
     backgroundColor: '#007AFF',
@@ -261,6 +272,35 @@ const styles = StyleSheet.create({
   },
   deleteBtn: {
     padding: 5,
+  },
+  savedActions: {
+    flexDirection: 'row',
+    gap: 8,
+    alignItems: 'center',
+  },
+  smallBtn: {
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+  },
+  footer: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 20,
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    paddingHorizontal: 20,
+  },
+  footerButton: {
+    flex: 1,
+    marginHorizontal: 8,
+    backgroundColor: '#007AFF',
+    padding: 15,
+    borderRadius: 10,
+    alignItems: 'center',
+  },
+  footerPrimary: {
+    backgroundColor: '#34C759',
   },
 });
 

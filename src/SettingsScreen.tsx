@@ -23,7 +23,8 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation }) => {
   };
 
   const goBackToHome = () => {
-    navigation.navigate('Home');
+    // pop back to the root/home to avoid stacking multiple Home screens
+    navigation.popToTop();
   };
 
   return (
