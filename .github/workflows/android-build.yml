@@ -1,0 +1,87 @@
+name: Build Android App with Fallback
+
+on:
+  workflow_dispatch: # 手动触发
+  push:
+    branches: [ main, master, release/* ]
+    tags: [ 'v*' ] # 标签推送时也构建
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  build-android:
+    name: Build Android Release
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup JDK 17
+      uses: actions/setup-java@v4
+      with:
+        java-version: '17'
+        distribution: 'temurin'
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: 'npm'
+        cache-dependency-path: package-lock.json
+
+    - name: Install dependencies
+      run: npm ci
+
+    - name: Make Gradle Wrapper executable
+      run: chmod +x android/gradlew
+
+    - name: Decode Keystore from Secret (if exists)
+      id: decode-keystore
+      run: |
+        if [ -n "${{ secrets.KEYSTORE_BASE64 }}" ]; then
+          echo "Decoding keystore from secret..."
+          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > android/app/release.keystore
+          echo "keystore_exists=true" >> $GITHUB_OUTPUT
+        else
+          echo "No keystore secret found, will use fallback build"
+          echo "keystore_exists=false" >> $GITHUB_OUTPUT
+        fi
+
+    - name: Build Android Release
+      run: |
+        cd android
+        
+        # 方案一：使用逻辑OR操作符进行回退
+        ./gradlew assembleRelease \
+          -PreleaseKeystoreFile=release.keystore \
+          -PreleaseStorePassword=${{ secrets.KEYSTORE_PASSWORD || '' }} \
+          -PreleaseKeyAlias=${{ secrets.KEY_ALIAS || '' }} \
+          -PreleaseKeyPassword=${{ secrets.KEY_PASSWORD || '' }} \
+          || ./gradlew assembleStagingRelease  # 如果release构建失败，则构建staging版本
+        
+        # 显示构建结果
+        if [ -f "app/build/outputs/apk/release/app-release.apk" ]; then
+          echo "✅ Production release APK built successfully"
+        elif [ -f "app/build/outputs/apk/staging/release/app-staging-release.apk" ]; then
+          echo "⚠️  Staging release APK built (fallback mode)"
+        else
+          echo "❌ Both production and staging builds failed"
+          exit 1
+        fi
+
+    - name: Upload APK artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: android-builds
+        path: |
+          android/app/build/outputs/apk/release/app-release.apk
+          android/app/build/outputs/apk/staging/release/app-staging-release.apk
+        if-no-files-found: ignore
+        retention-days: 7
+
+    - name: Notify on successful build
+      if: success()
+      run: |
+        echo "🎉 Android build completed successfully!"
+        echo "Build type: $([ -f "android/app/build/outputs/apk/release/app-release.apk" ] && echo "PRODUCTION" || echo "STAGING (fallback)")"

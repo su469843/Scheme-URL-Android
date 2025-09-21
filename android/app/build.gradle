@@ -85,6 +85,7 @@ android {
         versionCode 1
         versionName "1.0"
     }
+
     signingConfigs {
         debug {
             storeFile file('debug.keystore')
@@ -92,17 +93,89 @@ android {
             keyAlias 'androiddebugkey'
             keyPassword 'android'
         }
+
+        release {
+            // 生产环境签名配置（通过 -PreleaseKeystoreFile 等属性注入）
+            if (project.hasProperty('releaseKeystoreFile')) {
+                println "🔐 Using production signing configuration"
+                storeFile file(releaseKeystoreFile)
+                storePassword project.findProperty('releaseStorePassword') ?: ""
+                keyAlias project.findProperty('releaseKeyAlias') ?: ""
+                keyPassword project.findProperty('releaseKeyPassword') ?: ""
+            } else {
+                println "⚠️  WARNING: Production signing config not found"
+                // 留空，后面构建时会回退到 staging
+            }
+        }
+
+        staging {
+            println "🔧 Using staging signing configuration (fallback)"
+            storeFile file('debug.keystore')
+            storePassword 'android'
+            keyAlias 'androiddebugkey'
+            keyPassword 'android'
+        }
     }
+
     buildTypes {
         debug {
             signingConfig signingConfigs.debug
         }
+
         release {
-            // Caution! In production, you need to generate your own keystore file.
-            // see https://reactnative.dev/docs/signed-apk-android.
-            signingConfig signingConfigs.debug
-            minifyEnabled enableProguardInReleaseBuilds
+            // 生产版本配置
+            minifyEnabled true
             proguardFiles getDefaultProguardFile("proguard-android.txt"), "proguard-rules.pro"
+            
+            // 尝试使用release签名，如果不可用则使用staging签名
+            def releaseSigning = signingConfigs.release
+            if (releaseSigning != null && releaseSigning.storeFile != null && releaseSigning.storeFile.exists()) {
+                signingConfig signingConfigs.release
+                println "✅ Using production signing for release build"
+            } else {
+                signingConfig signingConfigs.staging
+                println "⚠️  Fallback: Using staging signing for release build"
+            }
+        }
+    }
+
+    // 添加staging构建变体
+    flavorDimensions "environment"
+    productFlavors {
+        staging {
+            dimension "environment"
+            applicationIdSuffix ".staging"
+            versionNameSuffix "-STAGING"
+            println "📦 Configuring staging build variant"
+        }
+        production {
+            dimension "environment"
+            println "📦 Configuring production build variant"
+        }
+    }
+
+    // 配置默认构建变体
+    variantFilter { variant ->
+        def names = variant.flavors*.name
+        if (names.contains("staging") && variant.buildType.name == "debug") {
+            setIgnore(true) // 忽略staging的debug构建
+        }
+    }
+}
+
+// 添加一个任务来检查签名配置
+task checkSigningConfigs {
+    doLast {
+        println "🔍 Checking signing configurations:"
+        println " - Release config available: ${project.hasProperty('releaseKeystoreFile')}"
+        println " - Store password provided: ${project.findProperty('releaseStorePassword') != null}"
+        println " - Key alias provided: ${project.findProperty('releaseKeyAlias') != null}"
+        
+        if (signingConfigs.release.storeFile != null) {
+            println "✅ Release keystore file: ${signingConfigs.release.storeFile}"
+            println "✅ Release keystore exists: ${signingConfigs.release.storeFile.exists()}"
+        } else {
+            println "❌ Release keystore not configured"
         }
     }
 }
