@@ -37,5 +37,5 @@
 - 使用React Navigation Native Stack实现页面导航
 - 使用React Native Linking API处理URL Scheme
 - 使用AsyncStorage进行数据持久化存储
-- 使用UUID生成唯一标识符
+- 使用自定义ID生成器（避免crypto依赖）
 - 支持Android和iOS平台

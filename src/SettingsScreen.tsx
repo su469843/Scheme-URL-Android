@@ -1,103 +1,54 @@
-import React, { useContext } from 'react';
-import { View, Text, StyleSheet, Switch, TouchableOpacity, Alert } from 'react-native';
-import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import type { RootStackParamList } from '../AppNavigator';
-import { ThemeContext } from './theme/ThemeContext';
-import { logInfo } from './logger';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, Switch, Appearance } from 'react-native';
+import { getDarkModePreference, saveDarkModePreference } from './StorageUtil';
 
-type SettingsScreenProps = NativeStackScreenProps<RootStackParamList, 'Settings'>;
+const SettingsScreen: React.FC = () => {
+  // 获取系统默认主题
+  const systemTheme = Appearance.getColorScheme();
+  const [isDarkMode, setIsDarkMode] = useState(false);
 
-const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation }) => {
-  const [notificationsEnabled, setNotificationsEnabled] = React.useState(true);
-  const { theme, toggleTheme, backgroundColor, textColor } = useContext(ThemeContext);
+  // 组件加载时从本地存储读取用户偏好设置
+  useEffect(() => {
+    const loadDarkModePreference = async () => {
+      try {
+        const savedPreference = await getDarkModePreference();
+        // 如果有保存的偏好设置，则使用它；否则使用系统主题
+        if (savedPreference !== null) {
+          setIsDarkMode(savedPreference);
+        } else {
+          setIsDarkMode(systemTheme === 'dark');
+        }
+      } catch (error) {
+        console.error('加载深色模式偏好设置失败:', error);
+        // 出错时使用系统主题
+        setIsDarkMode(systemTheme === 'dark');
+      }
+    };
 
-  const toggleNotifications = () => {
-    setNotificationsEnabled(!notificationsEnabled);
-    logInfo(`通知设置已${!notificationsEnabled ? '启用' : '禁用'}`);
-  };
+    loadDarkModePreference();
+  }, [systemTheme]);
 
-  const showAbout = () => {
-    Alert.alert(
-      '关于',
-      'Scheme URL Handler v1.0\n\n这是一个处理自定义URL协议的示例应用。',
-      [{ text: '确定' }]
-    );
-    logInfo('用户查看了关于信息');
-  };
-
-  const goBackToHome = () => {
-    // pop back to the root/home to avoid stacking multiple Home screens
-    navigation.popToTop();
-    logInfo('用户从设置页面返回首页');
-  };
-
-  const goToLogs = () => {
-    navigation.navigate('Logs');
-    logInfo('用户从设置页面导航到日志页面');
-  };
-
-  const handleToggleTheme = () => {
-    toggleTheme();
-    logInfo(`主题已切换为${theme === 'dark' ? '浅色' : '深色'}模式`);
+  const toggleTheme = async (value: boolean) => {
+    setIsDarkMode(value);
+    try {
+      await saveDarkModePreference(value);
+    } catch (error) {
+      console.error('保存深色模式偏好设置失败:', error);
+    }
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: backgroundColor as any }]}> 
-      <View style={styles.header}>
-        <Text style={[styles.title, { color: textColor as any }]}>设置</Text>
+    <View style={[styles.container, { backgroundColor: isDarkMode ? '#333' : '#f5f5f5' }]}>
+      <Text style={[styles.title, { color: isDarkMode ? '#fff' : '#000' }]}>设置页面</Text>
+      <View style={styles.settingItem}>
+        <Text style={[styles.settingText, { color: isDarkMode ? '#fff' : '#000' }]}>深色模式</Text>
+        <Switch
+          value={isDarkMode}
+          onValueChange={toggleTheme}
+        />
       </View>
-
-      <View style={styles.content}>
-        <TouchableOpacity style={styles.button} onPress={goBackToHome}>
-          <Text style={styles.buttonText}>返回首页</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity style={[styles.button, styles.logButton]} onPress={goToLogs}>
-          <Text style={styles.buttonText}>查看日志</Text>
-        </TouchableOpacity>
-
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>通用设置</Text>
-          
-          <View style={styles.settingItem}>
-            <Text style={styles.settingText}>启用通知</Text>
-            <Switch
-              value={notificationsEnabled}
-              onValueChange={toggleNotifications}
-            />
-          </View>
-          
-          <View style={styles.settingItem}>
-            <Text style={styles.settingText}>深色模式</Text>
-            <Switch
-              value={theme === 'dark'}
-              onValueChange={handleToggleTheme}
-            />
-          </View>
-        </View>
-
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>关于</Text>
-          
-          <TouchableOpacity style={styles.settingItemButton} onPress={showAbout}>
-            <Text style={styles.settingText}>关于应用</Text>
-          </TouchableOpacity>
-        </View>
-
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>URL Scheme</Text>
-          
-          <View style={styles.settingItem}>
-            <Text style={styles.settingText}>当前Scheme</Text>
-            <Text style={styles.settingValue}>schemeurl</Text>
-          </View>
-          
-          <View style={styles.settingItem}>
-            <Text style={styles.settingText}>使用说明</Text>
-            <Text style={styles.settingValueSmall}>通过 schemeurl://... 访问应用</Text>
-          </View>
-        </View>
-      </View>
+      <Text style={[styles.content, { color: isDarkMode ? '#ccc' : '#666' }]}>        {isDarkMode ? '深色模式已开启' : '深色模式已关闭'}
+      </Text>
     </View>
   );
 };
@@ -105,82 +56,28 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
-  },
-  header: {
-    backgroundColor: '#fff',
-    padding: 20,
+    justifyContent: 'center',
     alignItems: 'center',
-    borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
+    backgroundColor: '#f5f5f5',
   },
   title: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: '#333',
-  },
-  content: {
-    padding: 20,
-  },
-  button: {
-    backgroundColor: '#007AFF',
-    padding: 15,
-    borderRadius: 10,
-    alignItems: 'center',
     marginBottom: 20,
-  },
-  logButton: {
-    backgroundColor: '#FF9500',
-  },
-  buttonText: {
-    color: '#fff',
-    fontSize: 18,
-    fontWeight: 'bold',
-  },
-  section: {
-    backgroundColor: '#fff',
-    borderRadius: 10,
-    marginBottom: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    padding: 15,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
-    color: '#333',
   },
   settingItem: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 15,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
-  },
-  settingItemButton: {
-    padding: 15,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
+    justifyContent: 'space-between',
+    width: '80%',
+    marginBottom: 20,
   },
   settingText: {
-    fontSize: 16,
-    color: '#333',
+    fontSize: 18,
   },
-  settingValue: {
+  content: {
     fontSize: 16,
     color: '#666',
-  },
-  settingValueSmall: {
-    fontSize: 14,
-    color: '#999',
-    textAlign: 'right',
-    flex: 1,
   },
 });
 
