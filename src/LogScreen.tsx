@@ -3,15 +3,9 @@ import { View, Text, StyleSheet, TouchableOpacity, FlatList, Alert } from 'react
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../AppNavigator';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { LogEntry } from './logger';
 
 type LogScreenProps = NativeStackScreenProps<RootStackParamList, 'Logs'>;
-
-interface LogEntry {
-  id: string;
-  timestamp: string;
-  message: string;
-  type: 'info' | 'warning' | 'error';
-}
 
 const LOG_STORAGE_KEY = '@app_logs';
 
@@ -60,8 +54,8 @@ const LogScreen: React.FC<LogScreenProps> = ({ navigation }) => {
     navigation.navigate('Home');
   };
 
-  const getLogStyle = (type: string) => {
-    switch (type) {
+  const getLogStyle = (level: string) => {
+    switch (level) {
       case 'error':
         return styles.errorLog;
       case 'warning':
@@ -72,7 +66,7 @@ const LogScreen: React.FC<LogScreenProps> = ({ navigation }) => {
   };
 
   const renderLogItem = ({ item }: { item: LogEntry }) => (
-    <View style={[styles.logItem, getLogStyle(item.type)]}>
+    <View style={[styles.logItem, getLogStyle(item.level)]}>
       <Text style={styles.logTimestamp}>{item.timestamp}</Text>
       <Text style={styles.logMessage}>{item.message}</Text>
     </View>
