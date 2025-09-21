@@ -6,6 +6,7 @@ import { writeNfc } from './nfc';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../AppNavigator';
 import PhoneIcon from './img/手机.svg';
+import { logInfo, logError } from './logger';
 
 interface HomeScreenProps extends NativeStackScreenProps<RootStackParamList, 'Home'> {
   url: string | null;
@@ -22,22 +23,35 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation, url, urlParams }) =
         { text: '确定' }
       ]
     );
+    logInfo('用户点击了测试说明按钮');
   };
 
   const goToSettings = () => {
     navigation.navigate('Settings');
+    logInfo('用户导航到设置页面');
   };
 
   const goToCreateUrl = () => {
     navigation.navigate('CreateUrl');
+    logInfo('用户导航到创建URL页面');
+  };
+
+  const goToLogs = () => {
+    navigation.navigate('Logs');
+    logInfo('用户导航到日志页面');
   };
 
   const [saved, setSaved] = useState<SavedUrl[]>([]);
 
   useEffect(() => {
     const load = async () => {
-      const list = await storage.getSavedUrls();
-      setSaved(list);
+      try {
+        const list = await storage.getSavedUrls();
+        setSaved(list);
+        logInfo(`成功加载 ${list.length} 个保存的URL`);
+      } catch (error) {
+        logError(`加载保存的URL失败: ${error}`);
+      }
     };
 
     const unsubscribe = navigation.addListener('focus', () => {
@@ -50,9 +64,15 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation, url, urlParams }) =
     return unsubscribe;
   }, []);
   const handleDelete = async (id: string) => {
-    await storage.removeUrl(id);
-    const list = await storage.getSavedUrls();
-    setSaved(list);
+    try {
+      await storage.removeUrl(id);
+      const list = await storage.getSavedUrls();
+      setSaved(list);
+      logInfo(`成功删除URL ID: ${id}`);
+    } catch (error) {
+      logError(`删除URL失败: ${error}`);
+      Alert.alert('错误', '删除URL失败');
+    }
   };
 
   const openSaved = async (item: SavedUrl) => {
@@ -60,10 +80,13 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation, url, urlParams }) =
       const supported = await Linking.canOpenURL(item.url);
       if (supported) {
         await Linking.openURL(item.url);
+        logInfo(`成功打开URL: ${item.name}`);
       } else {
+        logError(`无法打开URL: ${item.url}`);
         Alert.alert('无法打开', `无法打开 URL: ${item.url}`);
       }
     } catch (e) {
+      logError(`打开URL时出错: ${e}`);
       Alert.alert('错误', '打开 URL 时出错');
     }
   };
@@ -136,6 +159,9 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation, url, urlParams }) =
       <View style={styles.footer} pointerEvents="box-none">
         <TouchableOpacity style={styles.footerButton} onPress={openTestUrl}>
           <Text style={styles.buttonText}>测试说明</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={[styles.footerButton, styles.footerSecondary]} onPress={goToLogs}>
+          <Text style={styles.buttonText}>日志</Text>
         </TouchableOpacity>
         <TouchableOpacity style={[styles.footerButton, styles.footerPrimary]} onPress={goToSettings}>
           <Text style={styles.buttonText}>设置</Text>
@@ -301,6 +327,9 @@ const styles = StyleSheet.create({
   },
   footerPrimary: {
     backgroundColor: '#34C759',
+  },
+  footerSecondary: {
+    backgroundColor: '#FF9500',
   },
 });
 

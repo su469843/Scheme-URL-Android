@@ -5,7 +5,9 @@ import { Linking, TouchableOpacity, Text } from 'react-native';
 import HomeScreen from './src/HomeScreen';
 import SettingsScreen from './src/SettingsScreen';
 import CreateUrlScreen from './src/CreateUrlScreen';
+import LogScreen from './src/LogScreen';
 import { ThemeContext } from './src/theme/ThemeContext';
+import { logInfo, logError } from './src/logger';
 
 // 在文件顶部添加类型声明
 declare global {
@@ -14,6 +16,7 @@ declare global {
       Home: undefined;
       Settings: undefined;
       CreateUrl: undefined;
+      Logs: undefined;
     }
   }
 }
@@ -22,6 +25,7 @@ export type RootStackParamList = {
   Home: undefined;
   Settings: undefined;
   CreateUrl: undefined;
+  Logs: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -34,15 +38,23 @@ const AppNavigator: React.FC = () => {
   useEffect(() => {
     // 处理应用启动时的URL
     const handleInitialUrl = async () => {
-      const initialUrl = await Linking.getInitialURL();
-      if (initialUrl) {
-        handleUrl(initialUrl);
+      try {
+        const initialUrl = await Linking.getInitialURL();
+        if (initialUrl) {
+          handleUrl(initialUrl);
+          logInfo(`应用启动时接收到URL: ${initialUrl}`);
+        } else {
+          logInfo('应用启动时未接收到URL');
+        }
+      } catch (error) {
+        logError(`获取初始URL失败: ${error}`);
       }
     };
 
     // 处理应用运行时接收到的URL
     const handleUrlEvent = (event: { url: string }) => {
       handleUrl(event.url);
+      logInfo(`应用运行时接收到URL: ${event.url}`);
     };
 
     handleInitialUrl();
@@ -111,6 +123,19 @@ const AppNavigator: React.FC = () => {
           })}
         >
           {(props) => <CreateUrlScreen {...props} />}
+        </Stack.Screen>
+        <Stack.Screen 
+          name="Logs" 
+          options={({ navigation }) => ({
+            title: '应用日志',
+            headerLeft: () => (
+              <TouchableOpacity onPress={() => navigation.goBack()} style={{ paddingHorizontal: 12 }}>
+                <Text style={{ color: '#007AFF' }}>返回</Text>
+              </TouchableOpacity>
+            ),
+          })}
+        >
+          {(props) => <LogScreen {...props} />}
         </Stack.Screen>
       </Stack.Navigator>
     </NavigationContainer>

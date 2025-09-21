@@ -4,6 +4,7 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../AppNavigator';
 import storage, { SavedUrl } from './storage';
 import { v4 as uuidv4 } from 'uuid';
+import { logInfo, logError } from './logger';
 
 
 type CreateUrlScreenProps = NativeStackScreenProps<RootStackParamList, 'CreateUrl'>;
@@ -16,21 +17,25 @@ const CreateUrlScreen: React.FC<CreateUrlScreenProps> = ({ navigation }) => {
   const handleConfirm = async () => {
     if (!name || !url) {
       Alert.alert('错误', '名称和Scheme URL不能为空');
+      logError('用户尝试保存空的URL名称或URL');
       return;
     }
     if (saving) return;
     setSaving(true);
-    const item: SavedUrl = { id: uuidv4(), name, url };
+    
     try {
+      const item: SavedUrl = { id: uuidv4(), name, url };
       console.log('[CreateUrl] saving', item);
       await storage.saveUrl(item);
       console.log('[CreateUrl] saved successfully');
+      logInfo(`成功保存URL: ${name} - ${url}`);
       Alert.alert('成功', `已保存: ${name}\nURL: ${url}`, [
         { text: '确定', onPress: () => navigation.goBack() },
       ]);
-    } catch (e) {
-      console.error('[CreateUrl] save failed', e);
-      Alert.alert('错误', '保存失败，请稍后重试');
+    } catch (error) {
+      console.error('[CreateUrl] save failed', error);
+      logError(`保存URL失败: ${error}`);
+      Alert.alert('错误', '保存URL失败，请稍后重试');
     } finally {
       setSaving(false);
     }

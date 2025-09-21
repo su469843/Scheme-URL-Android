@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, Switch, TouchableOpacity, Alert } from 'react-n
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../AppNavigator';
 import { ThemeContext } from './theme/ThemeContext';
+import { logInfo } from './logger';
 
 type SettingsScreenProps = NativeStackScreenProps<RootStackParamList, 'Settings'>;
 
@@ -12,6 +13,7 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation }) => {
 
   const toggleNotifications = () => {
     setNotificationsEnabled(!notificationsEnabled);
+    logInfo(`通知设置已${!notificationsEnabled ? '启用' : '禁用'}`);
   };
 
   const showAbout = () => {
@@ -20,11 +22,23 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation }) => {
       'Scheme URL Handler v1.0\n\n这是一个处理自定义URL协议的示例应用。',
       [{ text: '确定' }]
     );
+    logInfo('用户查看了关于信息');
   };
 
   const goBackToHome = () => {
     // pop back to the root/home to avoid stacking multiple Home screens
     navigation.popToTop();
+    logInfo('用户从设置页面返回首页');
+  };
+
+  const goToLogs = () => {
+    navigation.navigate('Logs');
+    logInfo('用户从设置页面导航到日志页面');
+  };
+
+  const handleToggleTheme = () => {
+    toggleTheme();
+    logInfo(`主题已切换为${theme === 'dark' ? '浅色' : '深色'}模式`);
   };
 
   return (
@@ -36,6 +50,10 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation }) => {
       <View style={styles.content}>
         <TouchableOpacity style={styles.button} onPress={goBackToHome}>
           <Text style={styles.buttonText}>返回首页</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity style={[styles.button, styles.logButton]} onPress={goToLogs}>
+          <Text style={styles.buttonText}>查看日志</Text>
         </TouchableOpacity>
 
         <View style={styles.section}>
@@ -53,7 +71,7 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation }) => {
             <Text style={styles.settingText}>深色模式</Text>
             <Switch
               value={theme === 'dark'}
-              onValueChange={toggleTheme}
+              onValueChange={handleToggleTheme}
             />
           </View>
         </View>
@@ -110,6 +128,9 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     alignItems: 'center',
     marginBottom: 20,
+  },
+  logButton: {
+    backgroundColor: '#FF9500',
   },
   buttonText: {
     color: '#fff',
